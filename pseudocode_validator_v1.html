@@ -1,0 +1,713 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Validador de Pseudocódigo - AED UTN</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+        }
+
+        .header p {
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+
+        .main-content {
+            padding: 30px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+        }
+
+        .section {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            border: 2px solid #f0f0f0;
+            transition: all 0.3s ease;
+        }
+
+        .section:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.15);
+        }
+
+        .section h2 {
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 1.5em;
+            border-bottom: 3px solid #4facfe;
+            padding-bottom: 10px;
+        }
+
+        .code-editor-container {
+            position: relative;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            overflow: hidden;
+            background: #f8f9fa;
+        }
+
+        .line-numbers {
+            position: absolute;
+            left: 0;
+            top: 0;
+            background: #2d3748;
+            color: #a0aec0;
+            padding: 15px 10px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            line-height: 1.5;
+            width: 50px;
+            text-align: right;
+            user-select: none;
+            border-right: 2px solid #4a5568;
+        }
+
+        #pseudocode {
+            width: 100%;
+            height: 400px;
+            padding: 15px 15px 15px 65px;
+            border: none;
+            outline: none;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            line-height: 1.5;
+            background: #1a202c;
+            color: #e2e8f0;
+            resize: vertical;
+            white-space: pre;
+            overflow-wrap: normal;
+            overflow-x: auto;
+        }
+
+        .controls {
+            display: flex;
+            gap: 15px;
+            margin-top: 20px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 12px 30px;
+            border: none;
+            border-radius: 25px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+            transition: left 0.5s;
+        }
+
+        .btn:hover::before {
+            left: 100%;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.6);
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, #56ab2f 0%, #a8e6cf 100%);
+            color: white;
+            box-shadow: 0 5px 15px rgba(86, 171, 47, 0.4);
+        }
+
+        .btn-success:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(86, 171, 47, 0.6);
+        }
+
+        .btn-copy {
+            background: linear-gradient(135deg, #ff6b6b 0%, #ffa500 100%);
+            color: white;
+            box-shadow: 0 5px 15px rgba(255, 107, 107, 0.4);
+        }
+
+        .btn-copy:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(255, 107, 107, 0.6);
+        }
+
+        .btn:disabled {
+            background: #cccccc;
+            color: #666666;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .btn:disabled::before {
+            display: none;
+        }
+
+        .result {
+            margin-top: 20px;
+            padding: 20px;
+            border-radius: 10px;
+            min-height: 100px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            line-height: 1.6;
+            transition: all 0.3s ease;
+        }
+
+        .result.success {
+            background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
+            border: 2px solid #28a745;
+            color: #155724;
+        }
+
+        .result.error {
+            background: linear-gradient(135deg, #f8d7da 0%, #f5c6cb 100%);
+            border: 2px solid #dc3545;
+            color: #721c24;
+        }
+
+        .result.info {
+            background: linear-gradient(135deg, #d1ecf1 0%, #bee5eb 100%);
+            border: 2px solid #17a2b8;
+            color: #0c5460;
+        }
+
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 10px;
+            animation: pulse 2s infinite;
+        }
+
+        .status-success {
+            background: #28a745;
+        }
+
+        .status-error {
+            background: #dc3545;
+        }
+
+        .status-info {
+            background: #17a2b8;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        @media (max-width: 768px) {
+            .main-content {
+                grid-template-columns: 1fr;
+                gap: 20px;
+            }
+            
+            .header h1 {
+                font-size: 2em;
+            }
+            
+            .container {
+                margin: 10px;
+            }
+        }
+
+        .highlight-error {
+            background-color: rgba(220, 53, 69, 0.2) !important;
+        }
+
+        pre {
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔍 Validador de Pseudocódigo</h1>
+            <p>Algoritmos y Estructuras de Datos - UTN FRM</p>
+        </div>
+
+        <div class="main-content">
+            <div class="section">
+                <h2>📝 Editor de Pseudocódigo</h2>
+                <div class="code-editor-container">
+                    <div class="line-numbers" id="lineNumbers"></div>
+                    <textarea id="pseudocode" placeholder="Ingrese su pseudocódigo aquí...">
+PROGRAMA pares 
+
+FUNCION par (num:ENTERO): LOGICO 
+VAR cociente, resto: ENTERO 
+INICIO // verificar si un número es par 
+cociente = num / 2 
+resto = num - cociente * 2 
+SI resto = 0 ENTONCES par = [V] 
+SINO par = [F] 
+FINSI 
+RETORNO
+
+VAR nro: ENTERO 
+INICIO 
+Escribir ("Ingrese un número") 
+Leer (nro) 
+SI nro > 0 entonces 
+SI par (nro) ENTONCES Escribir ("PAR") 
+SINO Escribir ("IMPAR") 
+FINSI 
+SINO Escribir("NEGATIVO o CERO") 
+FINSI 
+FINPROGRAMA 
+</textarea>
+                </div>
+                
+                <div class="controls">
+                    <button class="btn btn-primary" onclick="validatePseudocode()">
+                        🔍 Revisar Pseudocódigo
+                    </button>
+                    <button class="btn btn-success" id="convertBtn" onclick="convertToCpp()" disabled>
+                        ⚡ Convertir a C++
+                    </button>
+                </div>
+
+                <div class="loading" id="loading">
+                    <div class="spinner"></div>
+                    <p>Procesando pseudocódigo...</p>
+                </div>
+
+                <div id="validationResult" class="result info" style="display: none;">
+                    <span class="status-indicator status-info"></span>
+                    <strong>Resultado de la validación aparecerá aquí</strong>
+                </div>
+            </div>
+
+            <div class="section">
+                <h2>💻 Código C++ Generado</h2>
+                <div id="cppResult" class="result info">
+                    <span class="status-indicator status-info"></span>
+                    <strong>El código C++ aparecerá aquí después de la conversión</strong>
+                    <br><br>
+                    <em>Primero valide la sintaxis del pseudocódigo haciendo clic en "Revisar Pseudocódigo"</em>
+                </div>
+                
+                <div class="controls" id="cppControls" style="display: none;">
+                    <button class="btn btn-copy" onclick="copyCppCode()">
+                        📋 Copiar Código C++
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+<script src="https://unpkg.com/nearley@2.20.1/lib/nearley.js"></script>
+<script src="https://unpkg.com/moo@0.5.1/moo.js"></script>
+<script src="pseudocode.js"></script>
+    <script>
+        // Simulación del parser de nearley (reemplazar con la implementación real)
+// Importar nearley y tu gramática compilada
+//const nearley = require("nearley");
+//const grammar = require("./pseudocode.js");
+const parser = new nearley.Parser(nearley.Grammar.fromCompiled(grammar));
+class PseudocodeParser {
+    static validate(code) {
+        try {
+            const parser = new nearley.Parser(nearley.Grammar.fromCompiled(grammar));
+            parser.feed(code);
+            
+            if (parser.results.length > 0) {
+                return {
+                    isValid: true,
+                    errors: [],
+                    ast: parser.results[0]
+                };
+            } else {
+                return {
+                    isValid: false,
+                    errors: [{ line: 1, message: "Sintaxis inválida" }]
+                };
+            }
+        } catch (error) {
+            return {
+                isValid: false,
+                errors: [{ 
+                    line: error.token?.line || 1, 
+                    message: error.message 
+                }]
+            };
+        }
+    }
+
+            static convertToCpp(code, programName) {
+                // Conversión básica simulada
+                let cpp = `#include <iostream>
+#include <string>
+#include <cmath>
+using namespace std;
+
+`;
+                
+                // Reemplazos básicos
+                const lines = code.split('\n');
+                let inMain = false;
+                let indentLevel = 0;
+                
+                for (let line of lines) {
+                    line = line.trim();
+                    
+                    if (line.startsWith('PROGRAMA ')) {
+                        continue;
+                    }
+                    
+                    if (line === 'INICIO') {
+                        cpp += 'int main() {\n';
+                        inMain = true;
+                        indentLevel = 1;
+                        continue;
+                    }
+                    
+                    if (line === 'FINPROGRAMA') {
+                        cpp += '    return 0;\n}\n';
+                        inMain = false;
+                        continue;
+                    }
+                    
+                    if (line.startsWith('VAR ')) {
+                        // Convertir declaraciones de variables
+                        const varDecl = line.substring(4);
+                        if (varDecl.includes(': ENTERO')) {
+                            cpp += '    int ' + varDecl.replace(': ENTERO', '') + ';\n';
+                        } else if (varDecl.includes(': REAL')) {
+                            cpp += '    float ' + varDecl.replace(': REAL', '') + ';\n';
+                        } else if (varDecl.includes(': CADENA')) {
+                            cpp += '    string ' + varDecl.replace(': CADENA', '') + ';\n';
+                        } else if (varDecl.includes(': CARACTER')) {
+                            cpp += '    char ' + varDecl.replace(': CARACTER', '') + ';\n';
+                        } else if (varDecl.includes('[') && varDecl.includes(']')) {
+                            // Arreglos
+                            const arrayDecl = varDecl.replace(/: ENTERO|: REAL|: CADENA|: CARACTER/, '');
+                            if (varDecl.includes(': ENTERO')) {
+                                cpp += '    int ' + arrayDecl + ';\n';
+                            } else if (varDecl.includes(': REAL')) {
+                                cpp += '    float ' + arrayDecl + ';\n';
+                            }
+                        }
+                        continue;
+                    }
+                    
+                    if (line.startsWith('CONST ')) {
+                        const constDecl = line.substring(6);
+                        cpp += '#define ' + constDecl.replace(' = ', ' ') + '\n';
+                        continue;
+                    }
+                    
+                    if (line.startsWith('Escribir(')) {
+                        const content = line.substring(9, line.length - 1);
+                        cpp += '    cout << ' + content + ' << endl;\n';
+                        continue;
+                    }
+                    
+                    if (line.startsWith('Leer(')) {
+                        const variable = line.substring(5, line.length - 1);
+                        cpp += '    cin >> ' + variable + ';\n';
+                        continue;
+                    }
+                    
+                    if (line.startsWith('SI ') && line.includes('ENTONCES')) {
+                        const condition = line.substring(3, line.indexOf('ENTONCES')).trim();
+                        cpp += '    if (' + condition.replace('=', '==') + ') {\n';
+                        indentLevel++;
+                        continue;
+                    }
+                    
+                    if (line === 'FINSI') {
+                        indentLevel--;
+                        cpp += '    }\n';
+                        continue;
+                    }
+                    
+                    if (line.startsWith('VARIAR ')) {
+                        // VARIAR i DE 0 HASTA 9
+                        const parts = line.split(' ');
+                        if (parts.length >= 6) {
+                            const variable = parts[1];
+                            const start = parts[3];
+                            const end = parts[5];
+                            cpp += `    for (int ${variable} = ${start}; ${variable} <= ${end}; ${variable}++) {\n`;
+                            indentLevel++;
+                        }
+                        continue;
+                    }
+                    
+                    if (line === 'FINVARIAR') {
+                        indentLevel--;
+                        cpp += '    }\n';
+                        continue;
+                    }
+                    
+                    // Asignaciones simples
+                    if (line.includes(' = ') && !line.startsWith('CONST')) {
+                        cpp += '    ' + line + ';\n';
+                        continue;
+                    }
+                    
+                    // Líneas vacías o comentarios
+                    if (line === '' || line.startsWith('//')) {
+                        cpp += line + '\n';
+                        continue;
+                    }
+                    
+                    // Otras líneas (procedimientos, funciones, etc.)
+                    if (line && !line.startsWith('PROCEDIMIENTO') && !line.startsWith('FUNCION')) {
+                        cpp += '    ' + line + '\n';
+                    }
+                }
+                
+                return cpp;
+            }
+        }
+        // Variables globales para almacenar el código generado
+
+        // Variables globales para almacenar el código C++
+        let generatedCppCode = '';
+
+        // Actualizar números de línea
+        function updateLineNumbers() {
+            const textarea = document.getElementById('pseudocode');
+            const lineNumbers = document.getElementById('lineNumbers');
+            const lines = textarea.value.split('\n').length;
+            
+            let numbers = '';
+            for (let i = 1; i <= lines; i++) {
+                numbers += i + '\n';
+            }
+            lineNumbers.textContent = numbers;
+        }
+
+        // Validar pseudocódigo
+        function validatePseudocode() {
+            const code = document.getElementById('pseudocode').value;
+            const resultDiv = document.getElementById('validationResult');
+            const convertBtn = document.getElementById('convertBtn');
+            const loading = document.getElementById('loading');
+            
+            // Mostrar loading
+            loading.style.display = 'block';
+            resultDiv.style.display = 'none';
+            
+            setTimeout(() => {
+                const validation = PseudocodeParser.validate(code);
+                
+                loading.style.display = 'none';
+                resultDiv.style.display = 'block';
+                
+                if (validation.isValid) {
+                    resultDiv.className = 'result success';
+                    resultDiv.innerHTML = `
+                        <span class="status-indicator status-success"></span>
+                        <strong>✅ Pseudocódigo válido</strong><br>
+                        El programa "${validation.programName}" tiene sintaxis correcta.<br>
+                        Puede proceder a convertirlo a C++.
+                    `;
+                    convertBtn.disabled = false;
+                } else {
+                    resultDiv.className = 'result error';
+                    let errorHtml = `
+                        <span class="status-indicator status-error"></span>
+                        <strong>❌ Errores de sintaxis encontrados:</strong><br><br>
+                    `;
+                    
+                    validation.errors.forEach(error => {
+                        errorHtml += `<strong>Línea ${error.line}:</strong> ${error.message}<br>`;
+                    });
+                    
+                    resultDiv.innerHTML = errorHtml;
+                    convertBtn.disabled = true;
+                }
+            }, 1000);
+        }
+
+        // Convertir a C++
+        function convertToCpp() {
+            const code = document.getElementById('pseudocode').value;
+            const cppResultDiv = document.getElementById('cppResult');
+            const cppControls = document.getElementById('cppControls');
+            
+            const validation = PseudocodeParser.validate(code);
+            
+            if (validation.isValid) {
+                const cppCode = PseudocodeParser.convertToCpp(code, validation.programName);
+                generatedCppCode = cppCode; // Guardar el código generado
+                
+                cppResultDiv.className = 'result success';
+                cppResultDiv.innerHTML = `
+                    <span class="status-indicator status-success"></span>
+                    <strong>🎉 Conversión a C++ completada</strong><br><br>
+                    <pre id="cppCodeDisplay">${cppCode}</pre>
+                `;
+                
+                // Mostrar controles de C++
+                cppControls.style.display = 'flex';
+            } else {
+                cppResultDiv.className = 'result error';
+                cppResultDiv.innerHTML = `
+                    <span class="status-indicator status-error"></span>
+                    <strong>❌ No se puede convertir</strong><br>
+                    Primero debe corregir los errores de sintaxis del pseudocódigo.
+                `;
+                
+                // Ocultar controles de C++
+                cppControls.style.display = 'none';
+                generatedCppCode = '';
+            }
+        }
+
+        // Copiar código C++ al portapapeles
+        function copyCppCode() {
+            if (!generatedCppCode) {
+                alert('No hay código C++ para copiar');
+                return;
+            }
+
+            // Crear un elemento temporal para copiar el texto
+            const tempTextArea = document.createElement('textarea');
+            tempTextArea.value = generatedCppCode;
+            document.body.appendChild(tempTextArea);
+            
+            try {
+                // Seleccionar y copiar el texto
+                tempTextArea.select();
+                tempTextArea.setSelectionRange(0, 99999); // Para móviles
+                
+                const successful = document.execCommand('copy');
+                
+                if (successful) {
+                    // Feedback visual de éxito
+                    const copyBtn = event.target;
+                    const originalText = copyBtn.innerHTML;
+                    
+                    copyBtn.innerHTML = '✅ ¡Copiado!';
+                    copyBtn.style.background = 'linear-gradient(135deg, #28a745 0%, #20c997 100%)';
+                    
+                    setTimeout(() => {
+                        copyBtn.innerHTML = originalText;
+                        copyBtn.style.background = 'linear-gradient(135deg, #ff6b6b 0%, #ffa500 100%)';
+                    }, 2000);
+                } else {
+                    throw new Error('Comando de copia no soportado');
+                }
+            } catch (err) {
+                // Fallback para navegadores modernos
+                if (navigator.clipboard && window.isSecureContext) {
+                    navigator.clipboard.writeText(generatedCppCode).then(() => {
+                        // Feedback visual de éxito
+                        const copyBtn = event.target;
+                        const originalText = copyBtn.innerHTML;
+                        
+                        copyBtn.innerHTML = '✅ ¡Copiado!';
+                        copyBtn.style.background = 'linear-gradient(135deg, #28a745 0%, #20c997 100%)';
+                        
+                        setTimeout(() => {
+                            copyBtn.innerHTML = originalText;
+                            copyBtn.style.background = 'linear-gradient(135deg, #ff6b6b 0%, #ffa500 100%)';
+                        }, 2000);
+                    }).catch(err => {
+                        console.error('Error al copiar: ', err);
+                        alert('Error al copiar al portapapeles. Seleccione el código manualmente.');
+                    });
+                } else {
+                    // Último recurso: mostrar el código en un alert para copia manual
+                    alert('Para copiar el código, selecciónelo manualmente desde la pantalla.\n\nSu navegador no soporta la copia automática.');
+                }
+            } finally {
+                // Limpiar el elemento temporal
+                document.body.removeChild(tempTextArea);
+            }
+        }
+
+        // Event listeners
+        document.getElementById('pseudocode').addEventListener('input', updateLineNumbers);
+        document.getElementById('pseudocode').addEventListener('scroll', function() {
+            document.getElementById('lineNumbers').scrollTop = this.scrollTop;
+        });
+
+        // Inicializar
+        updateLineNumbers();
+    </script>
+</body>
+</html>
