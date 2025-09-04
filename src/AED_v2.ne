@@ -41,17 +41,28 @@ declaraciones -> declaracion _ declaraciones:? {%
 %}
 
 # Tipos de declaraciones
-declaracion -> declaracion_variable
+declaracion -> declaracion_variables
              | declaracion_constante  
              | declaracion_tipo
              | declaracion_subprograma
 
-# Declaración de variables: VAR variable[dimensiones]: TIPO o VAR lista_variables: TIPO
-declaracion_variable -> "VAR" _ variable_con_dimensiones _ ":" _ tipo_dato {%
-    ([,, variable,,,, tipo]) => buildDeclaration('VAR', [variable], tipo)
+# CORRECCIÓN 1: Bloque de declaración de variables que empieza con VAR
+# y permite múltiples líneas de declaraciones
+declaracion_variables -> "VAR" _ lineas_declaracion_variables {%
+    ([,, lineas]) => ({ type: 'BLOQUE_VAR', declarations: lineas })
 %}
-| "VAR" _ lista_variables _ ":" _ tipo_dato {%
-    ([,, variables,,,, tipo]) => buildDeclaration('VAR', variables, tipo)
+
+# Líneas de declaración de variables (una o más líneas)
+lineas_declaracion_variables -> linea_declaracion_variable _ lineas_declaracion_variables:? {%
+    ([linea,, resto]) => resto ? [linea, ...resto] : [linea]
+%}
+
+# Una línea de declaración: variable[dimensiones]: TIPO o lista_variables: TIPO
+linea_declaracion_variable -> variable_con_dimensiones _ ":" _ tipo_dato {%
+    ([variable,,,, tipo]) => buildDeclaration('VAR', [variable], tipo)
+%}
+| lista_variables _ ":" _ tipo_dato {%
+    ([variables,,,, tipo]) => buildDeclaration('VAR', variables, tipo)
 %}
 
 # Declaración de constantes: CONST nombre = valor
@@ -77,8 +88,6 @@ lista_variables -> identificador _ "," _ lista_variables {%
 # Tipos de datos básicos y estructurados
 tipo_dato -> tipo_basico
            | tipo_registro
-           | tipo_enumerado
-           | tipo_subrango
            | identificador  # Tipo definido por usuario
 
 # Tipos básicos: ENTERO, REAL, CARACTER, CADENA, LOGICO
@@ -87,16 +96,6 @@ tipo_basico -> "ENTERO" {% () => 'ENTERO' %}
              | "CARACTER" {% () => 'CARACTER' %}
              | "CADENA" {% () => 'CADENA' %}
              | "LOGICO" {% () => 'LOGICO' %}
-
-# Tipo enumerado: (valor1, valor2, ...)
-tipo_enumerado -> "(" _ lista_identificadores _ ")" {%
-    ([,, valores]) => ({ type: 'ENUMERADO', values: valores })
-%}
-
-# Tipo subrango: min..max
-tipo_subrango -> expresion _ ".." _ expresion {%
-    ([min,,,, max]) => ({ type: 'SUBRANGO', min: min, max: max })
-%}
 
 # Declaración de tipos: TIPO nombre = definición
 declaracion_tipo -> "TIPO" _ identificador _ "=" _ definicion_tipo {%
@@ -189,13 +188,13 @@ sentencia_repetir -> "REPETIR" _ sentencias _ "HASTA" _ expresion {%
     ([,, sentencias,,,, condicion]) => buildStatement('REPETIR', sentencias, condicion)
 %}
 
-# Bucle variar: VARIAR contador DE inicio HASTA fin [SALTO incremento] sentencias FINVARIAR
+# Bucle variar: VARIAR contador DE inicio HASTA fin [PASO incremento] sentencias FINVARIAR
 sentencia_variar -> "VARIAR" _ identificador _ "DE" _ expresion _ "HASTA" _ expresion _ salto:? _ sentencias _ "FINVARIAR" {%
     ([,, contador,,,, inicio,,,, fin,, incremento,, sentencias]) => 
         buildStatement('VARIAR', contador, inicio, fin, incremento || 1, sentencias)
 %}
 
-salto -> "SALTO" _ expresion {% ([,, expr]) => expr %}
+salto -> "PASO" _ expresion {% ([,, expr]) => expr %}
 
 # Llamada a procedimiento: nombre(parámetros)
 llamada_procedimiento -> identificador _ "(" _ lista_expresiones:? _ ")" {%
@@ -206,19 +205,44 @@ llamada_procedimiento -> identificador _ "(" _ lista_expresiones:? _ ")" {%
 # Declaración de subprogramas
 declaracion_subprograma -> declaracion_procedimiento | declaracion_funcion
 
-# Procedimiento: PROCEDIMIENTO nombre(parámetros); INICIO sentencias FINPROCEDIMIENTO
-declaracion_procedimiento -> "PROCEDIMIENTO" _ identificador _ "(" _ lista_parametros:? _ ")" _ ";" _ 
+# CORRECCIÓN 2: Procedimiento con declaraciones locales opcionales
+# PROCEDIMIENTO nombre(parámetros) [declaraciones locales] INICIO sentencias FINPROCEDIMIENTO
+declaracion_procedimiento -> "PROCEDIMIENTO" _ identificador _ "(" _ lista_parametros:? _ ")" _ 
+                           declaraciones_locales:? _
                            "INICIO" _ sentencias:? _ "FINPROCEDIMIENTO" {%
-    ([,, nombre,,,, parametros,,,,,,,, sentencias]) => 
-        buildStatement('PROCEDIMIENTO', nombre, parametros || [], sentencias || [])
+    ([,, nombre,,,, parametros,,,, declaraciones_locales,,,,,, sentencias]) => 
+        buildStatement('PROCEDIMIENTO', nombre, parametros || [], declaraciones_locales || [], sentencias || [])
 %}
 
-# Función: FUNCION nombre(parámetros): tipo; INICIO sentencias RETORNO FINPROCEDIMIENTO
-declaracion_funcion -> "FUNCION" _ identificador _ "(" _ lista_parametros:? _ ")" _ ":" _ tipo_dato _ ";" _
-                     "INICIO" _ sentencias:? _ "RETORNO" _ "FINPROCEDIMIENTO" {%
-    ([,, nombre,,,, parametros,,,,,, tipo,,,,,, sentencias]) => 
-        buildStatement('FUNCION', nombre, parametros || [], tipo, sentencias || [])
+# CORRECCIÓN 2: Función con declaraciones locales opcionales
+# FUNCION nombre(parámetros): tipo [declaraciones locales] INICIO sentencias RETORNO
+declaracion_funcion -> "FUNCION" _ identificador _ "(" _ lista_parametros:? _ ")" _ ":" _ tipo_dato _
+                     declaraciones_locales:? _
+                     "INICIO" _ sentencias:? _ "RETORNO" {%
+  ([,, nombre,,,, parametros,,,,,, tipo,, declaraciones_locales,,,, sentencias]) => {
+    const cuerpo = sentencias || [];
+
+    //Validar que haya una asignación a la función (tipo return)
+    const tieneAsignacion = cuerpo.some(stmt =>
+      stmt.type === 'ASIGNACION' && stmt.variable === nombre
+    );
+
+    if (!tieneAsignacion) {
+      throw new Error(`La función '${nombre}' debe asignarse al menos una vez antes de RETORNO.`);
+    }
+
+    return buildStatement('FUNCION', nombre, parametros || [], tipo, declaraciones_locales || [], cuerpo);
+  }
 %}
+
+
+# Declaraciones locales para procedimientos y funciones (variables y constantes)
+declaraciones_locales -> declaracion_local _ declaraciones_locales:? {%
+    ([decl,, resto]) => resto ? [decl, ...resto] : [decl]
+%}
+
+# Tipos de declaraciones locales (solo variables y constantes)
+declaracion_local -> declaracion_variables | declaracion_constante
 
 # Lista de parámetros
 lista_parametros -> parametro _ "," _ lista_parametros {%
@@ -239,7 +263,7 @@ modificador_referencia -> "porRef" {% () => true %}
 
 # Variables (pueden ser indexadas o campos de registro)
 variable -> identificador accesos:? {%
-    ([id, accesos]) => accesos ? { type: 'VAR_ACCESO', name: id, accesses: accesos } : id
+    ([id, accesos]) =>(accesos ? { type: 'VAR_ACCESO', name: id, accesses: accesos } : id)
 %}
 
 accesos -> acceso accesos:? {%
@@ -247,22 +271,22 @@ accesos -> acceso accesos:? {%
 %}
 
 # Acceso a arreglos multidimensionales: [expr] o [expr,expr] o [expr,expr,expr]
-acceso -> "[" _ lista_expresiones _ "]" {% ([,, indices]) => { type: 'INDEX', indices: indices } %}
-        | "." _ identificador {% ([,, id]) => { type: 'FIELD', name: id } %}
+acceso -> "[" _ lista_expresiones _ "]" {% ([,, indices]) => ({ type: 'INDEX', indices: indices }) %}
+        | "." _ identificador {% ([,, id]) => ({ type: 'FIELD', name: id }) %}
 
 # Expresiones
 expresion -> expresion_or
 
-expresion_or -> expresion_or _ "O" _ expresion_and {%
-    ([izq,,,, der]) => buildStatement('OP_BINARIA', 'O', izq, der)
+expresion_or -> expresion_or _ "[Y]" _ expresion_and {%
+    ([izq,,,, der]) => buildStatement('OP_BINARIA', '[Y]', izq, der)
 %} | expresion_and
 
-expresion_and -> expresion_and _ "Y" _ expresion_not {%
-    ([izq,,,, der]) => buildStatement('OP_BINARIA', 'Y', izq, der)
+expresion_and -> expresion_and _ "[O]" _ expresion_not {%
+    ([izq,,,, der]) => buildStatement('OP_BINARIA', '[O]', izq, der)
 %} | expresion_not
 
-expresion_not -> "NO" _ expresion_relacional {%
-    ([,, expr]) => buildStatement('OP_UNARIA', 'NO', expr)
+expresion_not -> "[NO]" _ expresion_relacional {%
+    ([,, expr]) => buildStatement('OP_UNARIA', '[NO]', expr)
 %} | expresion_relacional
 
 expresion_relacional -> expresion_aditiva _ operador_relacional _ expresion_aditiva {%
@@ -306,8 +330,8 @@ lista_expresiones -> expresion _ "," _ lista_expresiones {%
 
 # Lista de constantes para el SEGÚN CASO
 lista_constantes -> literal _ "," _ lista_constantes {%
-    ([const,,,, resto]) => [const, ...resto]
-%} | literal {% ([const]) => [const] %}
+    ([c,,,, resto]) => [c, ...resto]
+%} | literal {% ([c]) => [c] %}
 
 # Literales
 literal -> numero | cadena | caracter | booleano
@@ -322,7 +346,7 @@ booleano -> "[V]" {% () => ({ type: 'BOOLEANO', value: true }) %}
 identificador -> %identificador {% ([token]) => token.value %}
 
 # Espacios en blanco y comentarios
-_ -> %ws:? {% () => null %}
+_ -> (%ws | %comentario_unalinea | %comentario_multilinea):* {% () => null %}
 
 # Definición del lexer
 @lexer lexer
@@ -330,9 +354,9 @@ _ -> %ws:? {% () => null %}
 const moo = require("moo");
 
 const lexer = moo.compile({
-    ws: /[ \t\n\r]+/,
-    comentario: /\/\/.*$/,
-    
+    ws: { match: /[ \t\n\r]+/, lineBreaks: true },
+    comentario_unalinea: /\/\/.*?$/,
+    comentario_multilinea: { match: /\/\*[^]*?\*\//, lineBreaks: true },
     // Palabras reservadas
     PROGRAMA: 'PROGRAMA',
     INICIO: 'INICIO',
