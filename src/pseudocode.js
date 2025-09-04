@@ -4,29 +4,29 @@
 function id(x) { return x[0]; }
 
 // Funciones auxiliares para construir el AST
-var buildProgram = (name, declarations, statements) => ({
+const buildProgram = (name, declarations, statements) => ({
     type: 'PROGRAM',
     name: name,
     declarations: declarations || [],
     statements: statements || []
 });
 
-var buildDeclaration = (type, vars, dataType) => ({
+const buildDeclaration = (type, vars, dataType) => ({
     type: type,
     variables: vars,
     dataType: dataType
 });
 
-var buildStatement = (type, ...args) => ({
+const buildStatement = (type, ...args) => ({
     type: type,
     ...args.reduce((acc, arg, i) => ({ ...acc, [`arg${i}`]: arg }), {})
 });
 
 
-//const moo = require("moo");
+const moo = require("moo");
 
-var lexer = moo.compile({
-    ws: { match: /[ \t\n\r]+/, lineBreaks: true },
+const lexer = moo.compile({
+    ws: /[ \t\n\r]+/,
     comentario: /\/\/.*$/,
     
     // Palabras reservadas
@@ -124,15 +124,23 @@ var grammar = {
     {"name": "declaraciones", "symbols": ["declaracion", "_", "declaraciones$ebnf$1"], "postprocess": 
         ([decl,, resto]) => resto ? [decl, ...resto] : [decl]
         },
-    {"name": "declaracion", "symbols": ["declaracion_variable"]},
+    {"name": "declaracion", "symbols": ["declaracion_variables"]},
     {"name": "declaracion", "symbols": ["declaracion_constante"]},
     {"name": "declaracion", "symbols": ["declaracion_tipo"]},
     {"name": "declaracion", "symbols": ["declaracion_subprograma"]},
-    {"name": "declaracion_variable", "symbols": [{"literal":"VAR"}, "_", "variable_con_dimensiones", "_", {"literal":":"}, "_", "tipo_dato"], "postprocess": 
-        ([,, variable,,,, tipo]) => buildDeclaration('VAR', [variable], tipo)
+    {"name": "declaracion_variables", "symbols": [{"literal":"VAR"}, "_", "lineas_declaracion_variables"], "postprocess": 
+        ([,, lineas]) => ({ type: 'BLOQUE_VAR', declarations: lineas })
         },
-    {"name": "declaracion_variable", "symbols": [{"literal":"VAR"}, "_", "lista_variables", "_", {"literal":":"}, "_", "tipo_dato"], "postprocess": 
-        ([,, variables,,,, tipo]) => buildDeclaration('VAR', variables, tipo)
+    {"name": "lineas_declaracion_variables$ebnf$1", "symbols": ["lineas_declaracion_variables"], "postprocess": id},
+    {"name": "lineas_declaracion_variables$ebnf$1", "symbols": [], "postprocess": function(d) {return null;}},
+    {"name": "lineas_declaracion_variables", "symbols": ["linea_declaracion_variable", "_", "lineas_declaracion_variables$ebnf$1"], "postprocess": 
+        ([linea,, resto]) => resto ? [linea, ...resto] : [linea]
+        },
+    {"name": "linea_declaracion_variable", "symbols": ["variable_con_dimensiones", "_", {"literal":":"}, "_", "tipo_dato"], "postprocess": 
+        ([variable,,,, tipo]) => buildDeclaration('VAR', [variable], tipo)
+        },
+    {"name": "linea_declaracion_variable", "symbols": ["lista_variables", "_", {"literal":":"}, "_", "tipo_dato"], "postprocess": 
+        ([variables,,,, tipo]) => buildDeclaration('VAR', variables, tipo)
         },
     {"name": "declaracion_constante", "symbols": [{"literal":"CONST"}, "_", "identificador", "_", {"literal":"="}, "_", "expresion"], "postprocess": 
         ([,, nombre,,,, valor]) => buildDeclaration('CONST', [nombre], valor)
@@ -150,20 +158,12 @@ var grammar = {
     {"name": "lista_variables", "symbols": ["identificador"], "postprocess": ([id]) => [id]},
     {"name": "tipo_dato", "symbols": ["tipo_basico"]},
     {"name": "tipo_dato", "symbols": ["tipo_registro"]},
-    {"name": "tipo_dato", "symbols": ["tipo_enumerado"]},
-    {"name": "tipo_dato", "symbols": ["tipo_subrango"]},
     {"name": "tipo_dato", "symbols": ["identificador"]},
     {"name": "tipo_basico", "symbols": [{"literal":"ENTERO"}], "postprocess": () => 'ENTERO'},
     {"name": "tipo_basico", "symbols": [{"literal":"REAL"}], "postprocess": () => 'REAL'},
     {"name": "tipo_basico", "symbols": [{"literal":"CARACTER"}], "postprocess": () => 'CARACTER'},
     {"name": "tipo_basico", "symbols": [{"literal":"CADENA"}], "postprocess": () => 'CADENA'},
     {"name": "tipo_basico", "symbols": [{"literal":"LOGICO"}], "postprocess": () => 'LOGICO'},
-    {"name": "tipo_enumerado", "symbols": [{"literal":"("}, "_", "lista_identificadores", "_", {"literal":")"}], "postprocess": 
-        ([,, valores]) => ({ type: 'ENUMERADO', values: valores })
-        },
-    {"name": "tipo_subrango", "symbols": ["expresion", "_", {"literal":".."}, "_", "expresion"], "postprocess": 
-        ([min,,,, max]) => ({ type: 'SUBRANGO', min: min, max: max })
-        },
     {"name": "declaracion_tipo", "symbols": [{"literal":"TIPO"}, "_", "identificador", "_", {"literal":"="}, "_", "definicion_tipo"], "postprocess": 
         ([,, nombre,,,, definicion]) => 
             buildDeclaration('TIPO', [nombre], definicion)
@@ -255,20 +255,31 @@ var grammar = {
     {"name": "declaracion_subprograma", "symbols": ["declaracion_funcion"]},
     {"name": "declaracion_procedimiento$ebnf$1", "symbols": ["lista_parametros"], "postprocess": id},
     {"name": "declaracion_procedimiento$ebnf$1", "symbols": [], "postprocess": function(d) {return null;}},
-    {"name": "declaracion_procedimiento$ebnf$2", "symbols": ["sentencias"], "postprocess": id},
+    {"name": "declaracion_procedimiento$ebnf$2", "symbols": ["declaraciones_locales"], "postprocess": id},
     {"name": "declaracion_procedimiento$ebnf$2", "symbols": [], "postprocess": function(d) {return null;}},
-    {"name": "declaracion_procedimiento", "symbols": [{"literal":"PROCEDIMIENTO"}, "_", "identificador", "_", {"literal":"("}, "_", "declaracion_procedimiento$ebnf$1", "_", {"literal":")"}, "_", {"literal":"INICIO"}, "_", "declaracion_procedimiento$ebnf$2", "_", {"literal":"FINPROCEDIMIENTO"}], "postprocess": 
-        ([,, nombre,,,, parametros,,,,,,,, sentencias]) => 
-            buildStatement('PROCEDIMIENTO', nombre, parametros || [], sentencias || [])
+    {"name": "declaracion_procedimiento$ebnf$3", "symbols": ["sentencias"], "postprocess": id},
+    {"name": "declaracion_procedimiento$ebnf$3", "symbols": [], "postprocess": function(d) {return null;}},
+    {"name": "declaracion_procedimiento", "symbols": [{"literal":"PROCEDIMIENTO"}, "_", "identificador", "_", {"literal":"("}, "_", "declaracion_procedimiento$ebnf$1", "_", {"literal":")"}, "_", "declaracion_procedimiento$ebnf$2", "_", {"literal":"INICIO"}, "_", "declaracion_procedimiento$ebnf$3", "_", {"literal":"FINPROCEDIMIENTO"}], "postprocess": 
+        ([,, nombre,,,, parametros,,,, declaraciones_locales,,,,,, sentencias]) => 
+            buildStatement('PROCEDIMIENTO', nombre, parametros || [], declaraciones_locales || [], sentencias || [])
         },
     {"name": "declaracion_funcion$ebnf$1", "symbols": ["lista_parametros"], "postprocess": id},
     {"name": "declaracion_funcion$ebnf$1", "symbols": [], "postprocess": function(d) {return null;}},
-    {"name": "declaracion_funcion$ebnf$2", "symbols": ["sentencias"], "postprocess": id},
+    {"name": "declaracion_funcion$ebnf$2", "symbols": ["declaraciones_locales"], "postprocess": id},
     {"name": "declaracion_funcion$ebnf$2", "symbols": [], "postprocess": function(d) {return null;}},
-    {"name": "declaracion_funcion", "symbols": [{"literal":"FUNCION"}, "_", "identificador", "_", {"literal":"("}, "_", "declaracion_funcion$ebnf$1", "_", {"literal":")"}, "_", {"literal":":"}, "_", "tipo_dato", "_", {"literal":"INICIO"}, "_", "declaracion_funcion$ebnf$2", "_", {"literal":"RETORNO"}, "_", {"literal":"FINFUNCION"}], "postprocess": 
-        ([,, nombre,,,, parametros,,,,,, tipo,,,,,, sentencias]) => 
-            buildStatement('FUNCION', nombre, parametros || [], tipo, sentencias || [])
+    {"name": "declaracion_funcion$ebnf$3", "symbols": ["sentencias"], "postprocess": id},
+    {"name": "declaracion_funcion$ebnf$3", "symbols": [], "postprocess": function(d) {return null;}},
+    {"name": "declaracion_funcion", "symbols": [{"literal":"FUNCION"}, "_", "identificador", "_", {"literal":"("}, "_", "declaracion_funcion$ebnf$1", "_", {"literal":")"}, "_", {"literal":":"}, "_", "tipo_dato", "_", "declaracion_funcion$ebnf$2", "_", {"literal":"INICIO"}, "_", "declaracion_funcion$ebnf$3", "_", {"literal":"RETORNO"}], "postprocess": 
+        ([,, nombre,,,, parametros,,,,,, tipo,, declaraciones_locales,,,,,, sentencias]) => 
+            buildStatement('FUNCION', nombre, parametros || [], tipo, declaraciones_locales || [], sentencias || [])
         },
+    {"name": "declaraciones_locales$ebnf$1", "symbols": ["declaraciones_locales"], "postprocess": id},
+    {"name": "declaraciones_locales$ebnf$1", "symbols": [], "postprocess": function(d) {return null;}},
+    {"name": "declaraciones_locales", "symbols": ["declaracion_local", "_", "declaraciones_locales$ebnf$1"], "postprocess": 
+        ([decl,, resto]) => resto ? [decl, ...resto] : [decl]
+        },
+    {"name": "declaracion_local", "symbols": ["declaracion_variables"]},
+    {"name": "declaracion_local", "symbols": ["declaracion_constante"]},
     {"name": "lista_parametros", "symbols": ["parametro", "_", {"literal":","}, "_", "lista_parametros"], "postprocess": 
         ([param,,,, resto]) => [param, ...resto]
         },
@@ -294,16 +305,16 @@ var grammar = {
     {"name": "acceso", "symbols": [{"literal":"["}, "_", "lista_expresiones", "_", {"literal":"]"}], "postprocess": ([,, indices]) => ({ type: 'INDEX', indices: indices })},
     {"name": "acceso", "symbols": [{"literal":"."}, "_", "identificador"], "postprocess": ([,, id]) => ({ type: 'FIELD', name: id })},
     {"name": "expresion", "symbols": ["expresion_or"]},
-    {"name": "expresion_or", "symbols": ["expresion_or", "_", {"literal":"O"}, "_", "expresion_and"], "postprocess": 
-        ([izq,,,, der]) => buildStatement('OP_BINARIA', 'O', izq, der)
+    {"name": "expresion_or", "symbols": ["expresion_or", "_", {"literal":"[Y]"}, "_", "expresion_and"], "postprocess": 
+        ([izq,,,, der]) => buildStatement('OP_BINARIA', '[Y]', izq, der)
         },
     {"name": "expresion_or", "symbols": ["expresion_and"]},
-    {"name": "expresion_and", "symbols": ["expresion_and", "_", {"literal":"Y"}, "_", "expresion_not"], "postprocess": 
-        ([izq,,,, der]) => buildStatement('OP_BINARIA', 'Y', izq, der)
+    {"name": "expresion_and", "symbols": ["expresion_and", "_", {"literal":"[O]"}, "_", "expresion_not"], "postprocess": 
+        ([izq,,,, der]) => buildStatement('OP_BINARIA', '[O]', izq, der)
         },
     {"name": "expresion_and", "symbols": ["expresion_not"]},
-    {"name": "expresion_not", "symbols": [{"literal":"NO"}, "_", "expresion_relacional"], "postprocess": 
-        ([,, expr]) => buildStatement('OP_UNARIA', 'NO', expr)
+    {"name": "expresion_not", "symbols": [{"literal":"[NO]"}, "_", "expresion_relacional"], "postprocess": 
+        ([,, expr]) => buildStatement('OP_UNARIA', '[NO]', expr)
         },
     {"name": "expresion_not", "symbols": ["expresion_relacional"]},
     {"name": "expresion_relacional", "symbols": ["expresion_aditiva", "_", "operador_relacional", "_", "expresion_aditiva"], "postprocess": 
@@ -346,8 +357,10 @@ var grammar = {
         ([expr,,,, resto]) => [expr, ...resto]
         },
     {"name": "lista_expresiones", "symbols": ["expresion"], "postprocess": ([expr]) => [expr]},
-    {"name": "lista_constantes", "symbols": ["literal", "_", {"literal":","}, "_", "lista_constantes"], "postprocess": function(d) { return [d[0]].concat(d[4]); } },
-    {"name": "lista_constantes", "symbols": ["literal"], "postprocess": function(d) { return [d[0]]; }},
+    {"name": "lista_constantes", "symbols": ["literal", "_", {"literal":","}, "_", "lista_constantes"], "postprocess": 
+        ([const,,,, resto]) => [const, ...resto]
+        },
+    {"name": "lista_constantes", "symbols": ["literal"], "postprocess": ([const]) => [const]},
     {"name": "literal", "symbols": ["numero"]},
     {"name": "literal", "symbols": ["cadena"]},
     {"name": "literal", "symbols": ["caracter"]},
